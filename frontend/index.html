@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ShopMind AI — Multimodal RAG Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --glass-bg:rgba(255,255,255,0.12);
+  --glass-border:rgba(255,255,255,0.25);
+  --glass-shadow:0 8px 32px rgba(0,0,0,0.3);
+  --blur:backdrop-filter:blur(20px);
+  --accent:#7c6aff;
+  --accent2:#ff6ab0;
+  --text:#fff;
+  --text-dim:rgba(255,255,255,0.65);
+}
+body{
+  font-family:'Inter',sans-serif;
+  min-height:100vh;
+  background:linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%);
+  color:var(--text);
+  overflow-x:hidden;
+}
+/* Animated blobs */
+.blob{position:fixed;border-radius:50%;filter:blur(80px);opacity:.35;pointer-events:none;z-index:0;}
+.blob1{width:500px;height:500px;background:radial-gradient(circle,#7c6aff,#302b63);top:-100px;left:-100px;animation:float1 8s ease-in-out infinite;}
+.blob2{width:400px;height:400px;background:radial-gradient(circle,#ff6ab0,#302b63);bottom:-80px;right:-80px;animation:float2 10s ease-in-out infinite;}
+.blob3{width:300px;height:300px;background:radial-gradient(circle,#43e8d8,#24243e);top:40%;left:60%;animation:float3 12s ease-in-out infinite;}
+@keyframes float1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(60px,40px) scale(1.1)}}
+@keyframes float2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-50px,-30px) scale(1.15)}}
+@keyframes float3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-40px,50px) scale(0.9)}}
+
+/* Layout */
+.app{position:relative;z-index:1;display:grid;grid-template-columns:320px 1fr;grid-template-rows:auto 1fr;min-height:100vh;}
+header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:1.2rem 2rem;background:var(--glass-bg);backdrop-filter:blur(20px);border-bottom:1px solid var(--glass-border);}
+.logo{display:flex;align-items:center;gap:.7rem;font-size:1.3rem;font-weight:700;}
+.logo-icon{width:38px;height:38px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;}
+.status-pill{background:rgba(67,232,216,.15);border:1px solid rgba(67,232,216,.3);color:#43e8d8;padding:.3rem .9rem;border-radius:999px;font-size:.78rem;font-weight:500;display:flex;align-items:center;gap:.4rem;}
+.status-dot{width:7px;height:7px;border-radius:50%;background:#43e8d8;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* Sidebar */
+.sidebar{background:var(--glass-bg);backdrop-filter:blur(20px);border-right:1px solid var(--glass-border);padding:1.5rem;display:flex;flex-direction:column;gap:1.2rem;overflow-y:auto;}
+.panel-title{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--text-dim);margin-bottom:.3rem;}
+
+/* Filter glass card */
+.glass-card{background:rgba(255,255,255,0.08);border:1px solid var(--glass-border);border-radius:16px;padding:1.1rem;backdrop-filter:blur(10px);}
+.filter-group{display:flex;flex-direction:column;gap:.6rem;}
+label{font-size:.82rem;color:var(--text-dim);}
+input[type=text],input[type=number],select{
+  width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);
+  border-radius:10px;padding:.55rem .85rem;color:#fff;font-size:.85rem;font-family:'Inter',sans-serif;
+  outline:none;transition:border .2s;
+}
+input:focus,select:focus{border-color:var(--accent);}
+select option{background:#302b63;color:#fff;}
+.range-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;}
+
+/* Category chips */
+.chips{display:flex;flex-wrap:wrap;gap:.4rem;}
+.chip{padding:.3rem .75rem;border-radius:999px;border:1px solid var(--glass-border);background:rgba(255,255,255,0.07);font-size:.75rem;cursor:pointer;transition:all .2s;}
+.chip:hover,.chip.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+/* Upload zone */
+.upload-zone{border:2px dashed rgba(124,106,255,.5);border-radius:16px;padding:1.5rem 1rem;text-align:center;cursor:pointer;transition:all .3s;position:relative;overflow:hidden;}
+.upload-zone:hover{border-color:var(--accent);background:rgba(124,106,255,.08);box-shadow:0 0 20px rgba(124,106,255,.2);}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+.upload-icon{font-size:2rem;margin-bottom:.5rem;}
+.upload-text{font-size:.82rem;color:var(--text-dim);}
+.upload-preview{width:100%;max-height:140px;object-fit:cover;border-radius:10px;margin-top:.7rem;display:none;}
+
+/* Main chat area */
+.main{display:flex;flex-direction:column;overflow:hidden;}
+.chat-window{flex:1;overflow-y:auto;padding:1.5rem 2rem;display:flex;flex-direction:column;gap:1.2rem;scroll-behavior:smooth;}
+.chat-window::-webkit-scrollbar{width:5px;}
+.chat-window::-webkit-scrollbar-track{background:transparent;}
+.chat-window::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2);border-radius:99px;}
+
+/* Messages */
+.msg{display:flex;gap:.8rem;animation:fadeUp .3s ease;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.msg.user{flex-direction:row-reverse;}
+.avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;}
+.avatar.ai{background:linear-gradient(135deg,var(--accent),var(--accent2));}
+.avatar.user{background:rgba(255,255,255,0.15);border:1px solid var(--glass-border);}
+.bubble{max-width:72%;padding:1rem 1.2rem;border-radius:18px;line-height:1.6;font-size:.9rem;}
+.bubble.ai{background:var(--glass-bg);backdrop-filter:blur(20px);border:1px solid var(--glass-border);border-top-left-radius:4px;}
+.bubble.user{background:linear-gradient(135deg,var(--accent),#5a50e0);border-top-right-radius:4px;}
+.bubble strong{color:#fff;}
+
+/* Product cards grid inside bubble */
+.products-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:.8rem;margin-top:.8rem;}
+.product-card{
+  background:rgba(255,255,255,0.07);border:1px solid var(--glass-border);
+  border-radius:14px;overflow:hidden;cursor:pointer;transition:all .25s;
+  backdrop-filter:blur(10px);
+}
+.product-card:hover{transform:translateY(-4px);box-shadow:0 12px 30px rgba(0,0,0,0.4);border-color:rgba(124,106,255,.5);}
+.product-card img{width:100%;height:110px;object-fit:cover;}
+.product-info{padding:.7rem;}
+.product-name{font-size:.78rem;font-weight:600;line-height:1.3;margin-bottom:.3rem;}
+.product-price{font-size:.9rem;font-weight:700;color:#43e8d8;}
+.product-meta{display:flex;align-items:center;justify-content:space-between;margin-top:.4rem;}
+.product-rating{font-size:.72rem;color:var(--text-dim);}
+.stock-badge{font-size:.65rem;padding:.15rem .5rem;border-radius:999px;}
+.in-stock{background:rgba(67,232,216,.15);color:#43e8d8;}
+.out-stock{background:rgba(255,100,100,.15);color:#ff6464;}
+
+/* Input bar */
+.input-bar{padding:1rem 2rem 1.4rem;background:rgba(15,12,41,.4);backdrop-filter:blur(20px);border-top:1px solid var(--glass-border);}
+.input-row{display:flex;gap:.7rem;align-items:flex-end;}
+.input-wrap{flex:1;background:rgba(255,255,255,0.08);border:1px solid var(--glass-border);border-radius:18px;display:flex;align-items:center;padding:.6rem 1rem;gap:.6rem;transition:border .2s;}
+.input-wrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,106,255,.15);}
+.input-wrap textarea{flex:1;background:transparent;border:none;outline:none;color:#fff;font-size:.9rem;font-family:'Inter',sans-serif;resize:none;max-height:120px;line-height:1.5;}
+.input-wrap textarea::placeholder{color:rgba(255,255,255,0.35);}
+.btn-send{width:44px;height:44px;border-radius:14px;border:none;background:linear-gradient(135deg,var(--accent),var(--accent2));cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;transition:all .2s;flex-shrink:0;}
+.btn-send:hover{transform:scale(1.08);box-shadow:0 4px 20px rgba(124,106,255,.5);}
+.btn-send:active{transform:scale(.97);}
+.btn-img{width:44px;height:44px;border-radius:14px;border:1px solid var(--glass-border);background:rgba(255,255,255,0.08);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;transition:all .2s;flex-shrink:0;}
+.btn-img:hover{border-color:var(--accent);background:rgba(124,106,255,.15);}
+
+/* Welcome */
+.welcome{text-align:center;padding:3rem 1rem;opacity:.7;}
+.welcome h2{font-size:1.6rem;font-weight:700;margin-bottom:.6rem;background:linear-gradient(135deg,#fff,rgba(255,255,255,.5));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.welcome p{font-size:.9rem;color:var(--text-dim);max-width:400px;margin:0 auto 1.5rem;}
+.suggestions{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center;}
+.suggestion{padding:.5rem 1rem;border-radius:999px;border:1px solid var(--glass-border);background:var(--glass-bg);font-size:.82rem;cursor:pointer;transition:all .2s;}
+.suggestion:hover{border-color:var(--accent);background:rgba(124,106,255,.15);}
+
+/* Loading */
+.typing{display:flex;gap:5px;padding:.5rem 0;}
+.dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.5);animation:bounce .9s infinite;}
+.dot:nth-child(2){animation-delay:.15s;}
+.dot:nth-child(3){animation-delay:.3s;}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+
+/* Scrollbar fix */
+.sidebar::-webkit-scrollbar{width:4px;}
+.sidebar::-webkit-scrollbar-track{background:transparent;}
+.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:99px;}
+
+/* Toast */
+.toast{position:fixed;bottom:2rem;right:2rem;background:var(--glass-bg);backdrop-filter:blur(20px);border:1px solid var(--glass-border);border-radius:14px;padding:.8rem 1.2rem;font-size:.85rem;z-index:100;transform:translateY(80px);opacity:0;transition:all .3s;}
+.toast.show{transform:translateY(0);opacity:1;}
+
+@media(max-width:768px){.app{grid-template-columns:1fr}.sidebar{display:none}.chat-window{padding:1rem}}
+</style>
+</head>
+<body>
+<div class="blob blob1"></div>
+<div class="blob blob2"></div>
+<div class="blob blob3"></div>
+
+<div class="app">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🛍️</div>
+      <span>ShopMind <span style="color:var(--accent)">AI</span></span>
+    </div>
+    <div style="display:flex;gap:1rem;align-items:center">
+      <div class="status-pill"><div class="status-dot"></div><span id="apiStatus">Connecting...</span></div>
+      <div style="font-size:.8rem;color:var(--text-dim)">Multimodal RAG · Self-Hosted</div>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div>
+      <div class="panel-title">🔍 Filters</div>
+      <div class="glass-card filter-group">
+        <label>Category</label>
+        <select id="filterCategory">
+          <option value="">All Categories</option>
+          <option>Electronics</option>
+          <option>Apparel</option>
+          <option>Footwear</option>
+          <option>Kitchen</option>
+          <option>Home</option>
+          <option>Smart Home</option>
+          <option>Wearables</option>
+        </select>
+        <label style="margin-top:.5rem">Brand</label>
+        <input type="text" id="filterBrand" placeholder="e.g. Sony, Apple...">
+        <label style="margin-top:.5rem">Price Range (USD)</label>
+        <div class="range-row">
+          <input type="number" id="minPrice" placeholder="Min" min="0">
+          <input type="number" id="maxPrice" placeholder="Max" min="0">
+        </div>
+        <label style="margin-top:.5rem">
+          <input type="checkbox" id="inStock" style="width:auto;margin-right:.4rem">
+          In Stock Only
+        </label>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel-title">🏷️ Quick Filters</div>
+      <div class="chips">
+        <div class="chip" onclick="quickFilter(this,'under $100')">Under $100</div>
+        <div class="chip" onclick="quickFilter(this,'wireless')">Wireless</div>
+        <div class="chip" onclick="quickFilter(this,'noise cancelling')">Noise Cancel</div>
+        <div class="chip" onclick="quickFilter(this,'waterproof')">Waterproof</div>
+        <div class="chip" onclick="quickFilter(this,'portable')">Portable</div>
+        <div class="chip" onclick="quickFilter(this,'premium')">Premium</div>
+        <div class="chip" onclick="quickFilter(this,'smart home')">Smart Home</div>
+        <div class="chip" onclick="quickFilter(this,'eco friendly')">Eco-Friendly</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel-title">🖼️ Image Search</div>
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="imgInput" accept="image/*" onchange="handleImageSelect(event)">
+        <div class="upload-icon">📷</div>
+        <div class="upload-text">Drop an image or click to upload<br><span style="color:var(--accent);font-size:.75rem">Find visually similar products</span></div>
+        <img id="uploadPreview" class="upload-preview" alt="Preview">
+      </div>
+    </div>
+
+    <div>
+      <div class="panel-title">📊 Results</div>
+      <div class="glass-card">
+        <div style="font-size:2rem;font-weight:700" id="resultCount">—</div>
+        <div style="font-size:.78rem;color:var(--text-dim)">Products Found</div>
+        <div style="margin-top:.7rem;font-size:.78rem;color:var(--text-dim)">Latency: <span id="latency" style="color:#43e8d8">—</span></div>
+        <div style="font-size:.78rem;color:var(--text-dim)">Engine: <span style="color:var(--accent)">FAISS · TF-IDF LSA</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="chat-window" id="chatWindow">
+      <div class="welcome" id="welcome">
+        <h2>Your AI Shopping Assistant</h2>
+        <p>Ask me anything about products — search by text, image, or both. I'll find the perfect match.</p>
+        <div class="suggestions">
+          <div class="suggestion" onclick="sendSuggestion(this)">🎧 Best noise-cancelling headphones</div>
+          <div class="suggestion" onclick="sendSuggestion(this)">💻 Show me MacBook alternatives</div>
+          <div class="suggestion" onclick="sendSuggestion(this)">🔋 Portable speakers under $200</div>
+          <div class="suggestion" onclick="sendSuggestion(this)">👟 Comfortable sneakers for daily wear</div>
+          <div class="suggestion" onclick="sendSuggestion(this)">🏠 Smart home starter kit</div>
+          <div class="suggestion" onclick="sendSuggestion(this)">⌚ Fitness tracker with GPS</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-bar">
+      <div class="input-row">
+        <button class="btn-img" title="Image search" onclick="document.getElementById('imgInput').click()">🖼️</button>
+        <div class="input-wrap">
+          <textarea id="queryInput" rows="1" placeholder="Ask anything about products... (Enter to send)" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        </div>
+        <button class="btn-send" onclick="sendQuery()" title="Send">➤</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'http://localhost:8000';
+let selectedImage = null;
+let imageFile = null;
+
+// Check API health
+async function checkHealth(){
+  try{
+    const r = await fetch(API+'/health');
+    if(r.ok){
+      const d = await r.json();
+      document.getElementById('apiStatus').textContent=`${d.products_indexed} products indexed`;
+      document.querySelector('.status-pill').style.background='rgba(67,232,216,.15)';
+    }
+  }catch{
+    document.getElementById('apiStatus').textContent='Backend offline';
+    document.querySelector('.status-dot').style.background='#ff6464';
+    document.querySelector('.status-pill').style.borderColor='rgba(255,100,100,.3)';
+    document.querySelector('.status-pill').style.color='#ff6464';
+  }
+}
+checkHealth();
+setInterval(checkHealth, 15000);
+
+function autoResize(el){
+  el.style.height='auto';
+  el.style.height=Math.min(el.scrollHeight,120)+'px';
+}
+
+function handleKey(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendQuery();}
+}
+
+function handleImageSelect(e){
+  const file=e.target.files[0];
+  if(!file)return;
+  imageFile=file;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const prev=document.getElementById('uploadPreview');
+    prev.src=ev.target.result;
+    prev.style.display='block';
+    selectedImage=ev.target.result;
+    showToast('Image ready! Ask a question to search by image 🖼️');
+  };
+  reader.readAsDataURL(file);
+}
+
+function addMessage(role, html){
+  const welcome=document.getElementById('welcome');
+  if(welcome)welcome.remove();
+  const win=document.getElementById('chatWindow');
+  const msg=document.createElement('div');
+  msg.className=`msg ${role}`;
+  const isAI=role==='ai';
+  msg.innerHTML=`
+    <div class="avatar ${role}">${isAI?'🤖':'👤'}</div>
+    <div class="bubble ${role}">${html}</div>`;
+  win.appendChild(msg);
+  win.scrollTop=win.scrollHeight;
+  return msg;
+}
+
+function addTyping(){
+  const win=document.getElementById('chatWindow');
+  const msg=document.createElement('div');
+  msg.className='msg ai';
+  msg.id='typing';
+  msg.innerHTML=`<div class="avatar ai">🤖</div><div class="bubble ai"><div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>`;
+  win.appendChild(msg);
+  win.scrollTop=win.scrollHeight;
+}
+
+function removeTyping(){
+  const t=document.getElementById('typing');
+  if(t)t.remove();
+}
+
+function buildProductsHTML(results){
+  if(!results||!results.length)return '';
+  return `<div class="products-grid">${results.slice(0,6).map(r=>{
+    const p=r.product;
+    const inStock=p.stock>0;
+    const price=`${p.currency} ${p.price.toFixed(2)}`;
+    return `<div class="product-card" onclick="showProduct('${p.id}')">
+      <img src="${p.image_url}&auto=format&fit=crop" onerror="this.src='https://via.placeholder.com/200x110/302b63/fff?text=${encodeURIComponent(p.brand)}'" alt="${p.name}">
+      <div class="product-info">
+        <div class="product-name">${p.name}</div>
+        <div class="product-price">${price}</div>
+        <div class="product-meta">
+          <span class="product-rating">⭐ ${p.rating}</span>
+          <span class="stock-badge ${inStock?'in-stock':'out-stock'}">${inStock?'In Stock':'Out of Stock'}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+async function sendQuery(){
+  const input=document.getElementById('queryInput');
+  const query=input.value.trim();
+  if(!query&&!imageFile)return;
+  
+  const displayQuery=query||(imageFile?'🖼️ Image search':'Search');
+  addMessage('user',`<span>${displayQuery}</span>${selectedImage?`<br><img src="${selectedImage}" style="width:100%;max-height:150px;object-fit:cover;border-radius:10px;margin-top:.5rem">`:''}`);
+  input.value='';
+  input.style.height='auto';
+  addTyping();
+
+  const cat=document.getElementById('filterCategory').value;
+  const brand=document.getElementById('filterBrand').value;
+  const minP=document.getElementById('minPrice').value;
+  const maxP=document.getElementById('maxPrice').value;
+  const inStock=document.getElementById('inStock').checked;
+
+  try{
+    let data;
+    if(imageFile){
+      const form=new FormData();
+      form.append('image',imageFile);
+      form.append('query',query||'Find similar products');
+      form.append('top_k','6');
+      const r=await fetch(API+'/search/image',{method:'POST',body:form});
+      data=await r.json();
+    } else {
+      const body={query,top_k:6};
+      if(cat)body.category=cat;
+      if(brand)body.brand=brand;
+      if(minP)body.min_price=parseFloat(minP);
+      if(maxP)body.max_price=parseFloat(maxP);
+      if(inStock)body.in_stock_only=true;
+      const r=await fetch(API+'/search/text',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      data=await r.json();
+    }
+
+    removeTyping();
+    const results=data.results||[];
+    const answer=data.answer||'No results found.';
+    const prodHTML=buildProductsHTML(results);
+    const safeAnswer=answer.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
+    addMessage('ai',safeAnswer+prodHTML);
+    document.getElementById('resultCount').textContent=results.length;
+    document.getElementById('latency').textContent=`${data.latency_ms||0}ms`;
+
+    imageFile=null;selectedImage=null;
+    document.getElementById('uploadPreview').style.display='none';
+    document.getElementById('imgInput').value='';
+  }catch(err){
+    removeTyping();
+    addMessage('ai','❌ Could not reach the backend. Make sure the server is running:<br><code style="background:rgba(0,0,0,.3);padding:.2rem .5rem;border-radius:6px;font-size:.8rem">cd backend && uvicorn main:app --reload</code>');
+  }
+}
+
+function sendSuggestion(el){
+  document.getElementById('queryInput').value=el.textContent.replace(/^[^\s]+\s/,'');
+  sendQuery();
+}
+
+function quickFilter(el,term){
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('queryInput').value=term;
+  sendQuery();
+}
+
+function showProduct(id){showToast('Product detail view coming soon!');}
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+// Drag-and-drop on upload zone
+const uz=document.getElementById('uploadZone');
+uz.addEventListener('dragover',e=>{e.preventDefault();uz.style.borderColor='var(--accent)';});
+uz.addEventListener('dragleave',()=>{uz.style.borderColor='rgba(124,106,255,.5)';});
+uz.addEventListener('drop',e=>{
+  e.preventDefault();uz.style.borderColor='rgba(124,106,255,.5)';
+  const file=e.dataTransfer.files[0];
+  if(file&&file.type.startsWith('image/')){
+    imageFile=file;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const prev=document.getElementById('uploadPreview');
+      prev.src=ev.target.result;prev.style.display='block';
+      selectedImage=ev.target.result;
+      showToast('Image ready! Ask a question to search 🖼️');
+    };reader.readAsDataURL(file);
+  }
+});
+</script>
+</body>
+</html>

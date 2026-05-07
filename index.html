@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ShopMind AI — Agentic RAG Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --glass-bg:rgba(255,255,255,0.08);
+  --glass-border:rgba(255,255,255,0.15);
+  --glass-shadow:0 8px 32px rgba(0,0,0,0.3);
+  --blur:backdrop-filter:blur(20px);
+  --accent:#7c6aff;
+  --accent2:#ff6ab0;
+  --text:#fff;
+  --text-dim:rgba(255,255,255,0.65);
+}
+body{
+  font-family:'Inter',sans-serif;
+  min-height:100vh;
+  background:linear-gradient(135deg,#0f0c29 0%,#1a1a2e 50%,#0f0c29 100%);
+  color:var(--text);
+  overflow-x:hidden;
+}
+/* Animated blobs */
+.blob{position:fixed;border-radius:50%;filter:blur(80px);opacity:.25;pointer-events:none;z-index:0;}
+.blob1{width:500px;height:500px;background:radial-gradient(circle,#7c6aff,#302b63);top:-100px;left:-100px;animation:float1 8s ease-in-out infinite;}
+.blob2{width:400px;height:400px;background:radial-gradient(circle,#ff6ab0,#302b63);bottom:-80px;right:-80px;animation:float2 10s ease-in-out infinite;}
+@keyframes float1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(60px,40px) scale(1.1)}}
+@keyframes float2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-50px,-30px) scale(1.15)}}
+
+/* Layout */
+.app{position:relative;z-index:1;display:grid;grid-template-columns:320px 1fr;grid-template-rows:auto 1fr;min-height:100vh;}
+header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:1.2rem 2rem;background:var(--glass-bg);backdrop-filter:blur(20px);border-bottom:1px solid var(--glass-border);}
+.logo{display:flex;align-items:center;gap:.7rem;font-size:1.3rem;font-weight:700;}
+.logo-icon{width:38px;height:38px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;}
+.status-pill{background:rgba(67,232,216,.15);border:1px solid rgba(67,232,216,.3);color:#43e8d8;padding:.3rem .9rem;border-radius:999px;font-size:.78rem;font-weight:500;display:flex;align-items:center;gap:.4rem;}
+.status-dot{width:7px;height:7px;border-radius:50%;background:#43e8d8;}
+
+/* Sidebar */
+.sidebar{background:var(--glass-bg);backdrop-filter:blur(20px);border-right:1px solid var(--glass-border);padding:1.5rem;display:flex;flex-direction:column;gap:1.2rem;overflow-y:auto;}
+.panel-title{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--text-dim);margin-bottom:.3rem;}
+
+/* Filter glass card */
+.glass-card{background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);border-radius:16px;padding:1.1rem;backdrop-filter:blur(10px);}
+.filter-group{display:flex;flex-direction:column;gap:.6rem;}
+label{font-size:.82rem;color:var(--text-dim);}
+select, input{
+  width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);
+  border-radius:10px;padding:.55rem .85rem;color:#fff;font-size:.85rem;font-family:'Inter',sans-serif;outline:none;
+}
+
+/* Main chat area */
+.main{display:flex;flex-direction:column;overflow:hidden;}
+.chat-window{flex:1;overflow-y:auto;padding:1.5rem 2rem;display:flex;flex-direction:column;gap:1.2rem;}
+
+/* Messages */
+.msg{display:flex;gap:.8rem;animation:fadeUp .3s ease;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.msg.user{flex-direction:row-reverse;}
+.avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;}
+.avatar.ai{background:linear-gradient(135deg,var(--accent),var(--accent2));}
+.avatar.user{background:rgba(255,255,255,0.15);border:1px solid var(--glass-border);}
+.bubble{max-width:72%;padding:1rem 1.2rem;border-radius:18px;line-height:1.6;font-size:.9rem;}
+.bubble.ai{background:var(--glass-bg);backdrop-filter:blur(20px);border:1px solid var(--glass-border);border-top-left-radius:4px;}
+.bubble.user{background:linear-gradient(135deg,var(--accent),#5a50e0);border-top-right-radius:4px;}
+
+/* Product cards grid */
+.products-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem;margin-top:1rem;}
+.product-card{
+  background:rgba(255,255,255,0.05);border:1px solid var(--glass-border);
+  border-radius:14px;overflow:hidden;transition:all .25s;
+}
+.product-card:hover{transform:translateY(-4px);border-color:var(--accent);}
+.product-card img{width:100%;height:120px;object-fit:cover;}
+.product-info{padding:.8rem;}
+.product-name{font-size:.8rem;font-weight:600;margin-bottom:.3rem;}
+.product-price{font-size:.95rem;font-weight:700;color:#43e8d8;}
+
+/* Input bar */
+.input-bar{padding:1.5rem 2rem;background:rgba(15,12,41,0.6);backdrop-filter:blur(20px);border-top:1px solid var(--glass-border);}
+.input-row{display:flex;gap:.7rem;max-width:900px;margin:0 auto;}
+.input-wrap{flex:1;background:rgba(255,255,255,0.08);border:1px solid var(--glass-border);border-radius:18px;display:flex;align-items:center;padding:.6rem 1rem;}
+.input-wrap textarea{flex:1;background:transparent;border:none;outline:none;color:#fff;font-size:.95rem;font-family:'Inter',sans-serif;resize:none;max-height:120px;}
+.btn-send{width:48px;height:48px;border-radius:14px;border:none;background:linear-gradient(135deg,var(--accent),var(--accent2));cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.2rem;transition:0.2s;}
+.btn-send:hover{transform:scale(1.05);box-shadow:0 0 20px rgba(124,106,255,0.4);}
+
+/* Welcome */
+.welcome{text-align:center;padding:4rem 1rem;opacity:.8;}
+.welcome h2{font-size:2.2rem;margin-bottom:.8rem;background:linear-gradient(135deg,#fff,#aaa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+
+/* Typing */
+.typing{display:flex;gap:5px;padding:.5rem 0;}
+.dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,0.5);animation:bounce .9s infinite;}
+.dot:nth-child(2){animation-delay:.15s;}
+.dot:nth-child(3){animation-delay:.3s;}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+
+/* Upload zone */
+.upload-zone{border:2px dashed var(--glass-border);border-radius:16px;padding:1.5rem;text-align:center;cursor:pointer;transition:0.3s;}
+.upload-zone:hover{border-color:var(--accent);background:rgba(124,106,255,0.05);}
+.upload-preview{width:100%;max-height:150px;object-fit:cover;border-radius:10px;margin-top:1rem;display:none;}
+
+@media(max-width:768px){.app{grid-template-columns:1fr}.sidebar{display:none}}
+</style>
+</head>
+<body>
+<div class="blob blob1"></div>
+<div class="blob blob2"></div>
+
+<div class="app">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🛍️</div>
+      <span>ShopMind <span style="color:var(--accent)">AI</span></span>
+    </div>
+    <div class="status-pill"><div class="status-dot"></div><span>Serverless RAG Mode</span></div>
+  </header>
+
+  <aside class="sidebar">
+    <div>
+      <div class="panel-title">🔍 Filters</div>
+      <div class="glass-card filter-group">
+        <label>Category</label>
+        <select id="filterCategory">
+          <option value="">All Categories</option>
+          <option>Electronics</option>
+          <option>Apparel</option>
+          <option>Footwear</option>
+          <option>Kitchen</option>
+          <option>Home</option>
+          <option>Smart Home</option>
+          <option>Wearables</option>
+        </select>
+        <label style="margin-top:.5rem">Brand</label>
+        <input type="text" id="filterBrand" placeholder="e.g. Sony, Apple...">
+      </div>
+    </div>
+
+    <div>
+      <div class="panel-title">🖼️ Visual Search</div>
+      <div class="upload-zone" onclick="document.getElementById('imgInput').click()">
+        <input type="file" id="imgInput" accept="image/*" hidden onchange="handleImageSelect(event)">
+        <div style="font-size:2rem">📷</div>
+        <div style="font-size:.8rem;color:var(--text-dim);margin-top:.5rem">Upload product photo</div>
+        <img id="uploadPreview" class="upload-preview">
+      </div>
+    </div>
+
+    <div style="margin-top:auto">
+      <div class="panel-title">Powered By</div>
+      <div class="glass-card" style="font-size:.75rem;color:var(--text-dim)">
+        Gemini 1.5 Flash<br>
+        Direct Client-Side RAG<br>
+        Zero Backend Infrastructure
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="chat-window" id="chatWindow">
+      <div class="welcome" id="welcome">
+        <h2>Your AI Personal Shopper</h2>
+        <p>I can help you find products, compare specs, and give recommendations from our inventory.</p>
+        <div style="display:flex;gap:.8rem;justify-content:center;margin-top:2rem;flex-wrap:wrap">
+          <button class="glass-card" style="cursor:pointer;padding:.6rem 1.2rem;font-size:.85rem" onclick="setQuery('Best noise cancelling headphones')">🎧 Best ANC Headphones</button>
+          <button class="glass-card" style="cursor:pointer;padding:.6rem 1.2rem;font-size:.85rem" onclick="setQuery('Suggest some eco-friendly jackets')">🌱 Eco-friendly Jackets</button>
+          <button class="glass-card" style="cursor:pointer;padding:.6rem 1.2rem;font-size:.85rem" onclick="setQuery('Show me kitchen appliances')">🍳 Kitchen Essentials</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-bar">
+      <div class="input-row">
+        <div class="input-wrap">
+          <textarea id="queryInput" rows="1" placeholder="Search or ask anything..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendQuery()}"></textarea>
+        </div>
+        <button class="btn-send" onclick="sendQuery()">➤</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
+
+const API_KEY = "AIzaSyAtGfS1vZIv0SCYLgjPOKZs6HGNJCItozI";
+const genAI = new GoogleGenerativeAI(API_KEY);
+
+const products = [
+  {"id": "P001", "name": "Sony WH-1000XM5 Wireless Headphones", "category": "Electronics", "subcategory": "Headphones", "brand": "Sony", "price": 329.99, "currency": "USD", "stock": 45, "rating": 4.8, "description": "The WH-1000XM5 redefines noise cancellation with 8 microphones and two processors. 30-hour battery life. Industry-leading ANC.", "image_url": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400"},
+  {"id": "P002", "name": "Apple AirPods Pro (2nd Gen)", "category": "Electronics", "subcategory": "Earbuds", "brand": "Apple", "price": 249.00, "currency": "USD", "stock": 120, "rating": 4.7, "description": "AirPods Pro feature the Apple H2 chip for up to 2x more active noise cancellation. Adaptive Transparency and Spatial Audio.", "image_url": "https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=400"},
+  {"id": "P003", "name": "Samsung 65\" QLED 4K Smart TV", "category": "Electronics", "subcategory": "Television", "brand": "Samsung", "price": 1299.99, "currency": "USD", "stock": 8, "rating": 4.6, "description": "Experience breathtaking visuals with Quantum Dot technology. 100% Color Volume and 120Hz refresh rate.", "image_url": "https://images.unsplash.com/photo-1593784991095-a205069470b6?w=400"},
+  {"id": "P004", "name": "Nike Air Max 270 Sneakers", "category": "Footwear", "subcategory": "Athletic Shoes", "brand": "Nike", "price": 150.00, "currency": "USD", "stock": 234, "rating": 4.5, "description": "The Nike Air Max 270 features Nike's biggest heel Air unit yet for a super-soft ride. Lifestyle shoe perfect for casual wear.", "image_url": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400"},
+  {"id": "P005", "name": "Levi's 501 Original Fit Jeans", "category": "Apparel", "subcategory": "Jeans", "brand": "Levis", "price": 69.50, "currency": "USD", "stock": 567, "rating": 4.4, "description": "The original jean since 1873. Straight-leg style with a regular waist and button fly. 100% Cotton denim.", "image_url": "https://images.unsplash.com/photo-1542272604-787c3835535d?w=400"},
+  {"id": "P006", "name": "Instant Pot Duo 7-in-1", "category": "Kitchen", "subcategory": "Appliances", "brand": "Instant Pot", "price": 89.99, "currency": "USD", "stock": 89, "rating": 4.7, "description": "Replace 7 kitchen appliances: pressure cooker, slow cooker, rice cooker, and more. 13 built-in smart programs.", "image_url": "https://images.unsplash.com/photo-1585515320310-259814833e62?w=400"},
+  {"id": "P007", "name": "Dyson V15 Detect Absolute", "category": "Home", "subcategory": "Vacuum Cleaners", "brand": "Dyson", "price": 749.99, "currency": "USD", "stock": 23, "rating": 4.6, "description": "Laser reveals microscopic dust. LCD screen shows particle count. Adapts suction based on floor type.", "image_url": "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400"},
+  {"id": "P008", "name": "MacBook Air 15\" M3 Chip", "category": "Electronics", "subcategory": "Laptops", "brand": "Apple", "price": 1299.00, "currency": "USD", "stock": 34, "rating": 4.9, "description": "Powered by the Apple M3 chip. Strikingly thin and light with up to 18 hours battery life. Liquid Retina display.", "image_url": "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400"},
+  {"id": "P009", "name": "Kindle Paperwhite 11th Gen", "category": "Electronics", "subcategory": "E-Readers", "brand": "Amazon", "price": 139.99, "currency": "USD", "stock": 156, "rating": 4.7, "description": "6.8-inch 300ppi Paperwhite display. Adjustable warm light. IPX8 waterproof for worry-free reading.", "image_url": "https://images.unsplash.com/photo-1592496431122-2349e0fbc666?w=400"},
+  {"id": "P010", "name": "Anker 65W GaN USB-C Charger", "category": "Electronics", "subcategory": "Chargers", "brand": "Anker", "price": 35.99, "currency": "USD", "stock": 445, "rating": 4.6, "description": "Charge 3 devices at once. 65W fast charging for laptops and phones. Compact GaN technology.", "image_url": "https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=400"},
+  {"id": "P011", "name": "The North Face Thermoball Eco", "category": "Apparel", "subcategory": "Jackets", "brand": "The North Face", "price": 220.00, "currency": "USD", "stock": 78, "rating": 4.5, "description": "Packable warmth using 100% recycled materials. Synthetic insulation keeps warmth even when wet.", "image_url": "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400"},
+  {"id": "P012", "name": "Philips Hue Smart Bulb Kit", "category": "Smart Home", "subcategory": "Lighting", "brand": "Philips", "price": 199.99, "currency": "USD", "stock": 112, "rating": 4.5, "description": "16 million colors and shades of white. Control via app or voice. Works with Alexa, Google, and HomeKit.", "image_url": "https://images.unsplash.com/photo-1586105251261-72a756497a11?w=400"},
+  {"id": "P013", "name": "Fitbit Charge 6", "category": "Wearables", "subcategory": "Fitness Trackers", "brand": "Fitbit", "price": 159.95, "currency": "USD", "stock": 201, "rating": 4.3, "description": "Built-in GPS and Google apps. Heart rate tracking, sleep analysis, and stress management sensors.", "image_url": "https://images.unsplash.com/photo-1575311373937-040b8e1fd5b6?w=400"},
+  {"id": "P014", "name": "Bose QuietComfort 45", "category": "Electronics", "subcategory": "Headphones", "brand": "Bose", "price": 279.00, "currency": "USD", "stock": 67, "rating": 4.6, "description": "World-class noise cancellation. TriPort acoustic architecture delivers full, natural sound. 24-hour battery.", "image_url": "https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=400"},
+  {"id": "P015", "name": "JBL Charge 5 Speaker", "category": "Electronics", "subcategory": "Speakers", "brand": "JBL", "price": 179.95, "currency": "USD", "stock": 189, "rating": 4.7, "description": "IP67 waterproof and dustproof. Built-in power bank. 20-hour playtime with JBL Pro Sound.", "image_url": "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=400"}
+];
+
+let imageFile = null;
+
+window.handleImageSelect = (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  imageFile = file;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const prev = document.getElementById('uploadPreview');
+    prev.src = ev.target.result;
+    prev.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+};
+
+window.setQuery = (q) => {
+  document.getElementById('queryInput').value = q;
+  window.sendQuery();
+};
+
+window.sendQuery = async () => {
+  const input = document.getElementById('queryInput');
+  const query = input.value.trim();
+  if(!query && !imageFile) return;
+
+  addMessage('user', query || "Visual search query");
+  input.value = '';
+  addTyping();
+
+  try {
+    const cat = document.getElementById('filterCategory').value;
+    const brand = document.getElementById('filterBrand').value;
+    
+    let filteredProducts = products;
+    if(cat) filteredProducts = filteredProducts.filter(p => p.category === cat);
+    if(brand) filteredProducts = filteredProducts.filter(p => p.brand.toLowerCase().includes(brand.toLowerCase()));
+
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    
+    let prompt = `You are ShopMind AI, a helpful personal shopper.
+    Here is our product inventory:
+    ${JSON.stringify(filteredProducts)}
+    
+    User Query: "${query}"
+    
+    Instruction: Answer the user's question concisely. If recommending products, list their IDs. 
+    Format your response as a JSON object: {"answer": "your text response", "recommended_ids": ["P001", "P002"]}`;
+
+    let result;
+    if(imageFile) {
+      const imageData = await fileToGenerativePart(imageFile);
+      result = await model.generateContent([prompt, imageData]);
+    } else {
+      result = await model.generateContent(prompt);
+    }
+
+    const responseText = result.response.text();
+    let data;
+    try {
+      // Extract JSON from response in case Gemini adds markdown backticks
+      const jsonStr = responseText.match(/\{[\s\S]*\}/)[0];
+      data = JSON.parse(jsonStr);
+    } catch {
+      data = { answer: responseText, recommended_ids: [] };
+    }
+
+    removeTyping();
+    addMessage('ai', data.answer, data.recommended_ids);
+    imageFile = null;
+    document.getElementById('uploadPreview').style.display = 'none';
+  } catch (err) {
+    console.error(err);
+    removeTyping();
+    addMessage('ai', "Sorry, I encountered an error processing your request. Please check your API key or connection.");
+  }
+};
+
+async function fileToGenerativePart(file) {
+  const base64EncodedDataPromise = new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result.split(',')[1]);
+    reader.readAsDataURL(file);
+  });
+  return {
+    inlineData: { data: await base64EncodedDataPromise, mimeType: file.type },
+  };
+}
+
+function addMessage(role, text, recommendedIds = []) {
+  const win = document.getElementById('chatWindow');
+  const welcome = document.getElementById('welcome');
+  if(welcome) welcome.style.display = 'none';
+
+  const msg = document.createElement('div');
+  msg.className = `msg ${role}`;
+  
+  let productsHTML = '';
+  if(recommendedIds.length > 0) {
+    const recommendedProducts = products.filter(p => recommendedIds.includes(p.id));
+    productsHTML = `<div class="products-grid">
+      ${recommendedProducts.map(p => `
+        <div class="product-card">
+          <img src="${p.image_url}" alt="${p.name}">
+          <div class="product-info">
+            <div class="product-name">${p.name}</div>
+            <div class="product-price">$${p.price}</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>`;
+  }
+
+  msg.innerHTML = `
+    <div class="avatar ${role}">${role==='ai'?'🤖':'👤'}</div>
+    <div class="bubble ${role}">
+      <div>${text}</div>
+      ${productsHTML}
+    </div>
+  `;
+  win.appendChild(msg);
+  win.scrollTop = win.scrollHeight;
+}
+
+function addTyping() {
+  const win = document.getElementById('chatWindow');
+  const msg = document.createElement('div');
+  msg.className = 'msg ai';
+  msg.id = 'typing';
+  msg.innerHTML = `<div class="avatar ai">🤖</div><div class="bubble ai"><div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>`;
+  win.appendChild(msg);
+  win.scrollTop = win.scrollHeight;
+}
+
+function removeTyping() {
+  const t = document.getElementById('typing');
+  if(t) t.remove();
+}
+</script>
+</body>
+</html>
